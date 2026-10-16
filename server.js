@@ -3,7 +3,9 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import fastifyEnv from "@fastify/env";
 import fastifySensible from "@fastify/sensible";
-import mongodbPlugin from "./plugins/mongodb.js";
+import mongodbPlugin from "./src/plugins/mongodb.js";
+import jwtPlugin from "./src/plugins/jwt.js";
+import authRoutes from "./src/routes/auth.js";
 
 const fastify = Fastify({
   logger: true
@@ -22,7 +24,8 @@ await fastify.register(fastifyEnv, {
     properties: {
       PORT: { type: "number", default: 3000 },
       MONGODB_URI: { type: "string" },
-      JWT_TOKEN: { type: "string" }
+      JWT_TOKEN: { type: "string" },
+      JWT_SECRET: { type: "string" }
     }
   }
 });
@@ -30,6 +33,10 @@ await fastify.register(fastifyEnv, {
 await fastify.register(fastifySensible);
 
 await fastify.register(mongodbPlugin);
+
+await fastify.register(jwtPlugin);
+
+await fastify.register(authRoutes, { prefix: "/api/auth" });
 
 fastify.get("/", function (request, reply) {
   reply.send({ hello: "world" });

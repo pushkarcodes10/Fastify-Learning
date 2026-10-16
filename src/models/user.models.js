@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
     country: {type: String},
     resetPasswordToken: {type: String},
     resetPasswordExpiry: {type: Date},
+    refreshToken : {type: String}
 },{timestamps: true} )
 
-module.exports = mongoose.model("User", userSchema)
+export default mongoose.model("User", userSchema);

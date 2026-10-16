@@ -8,4 +8,4 @@ const thumbnailSchema = new mongoose.Schema({
     paid: {type: String, default: false}
 }, {timestamps: true} )
 
-module.exports = mongoose.model("Thumbnail", thumbnailSchema)
+export default mongoose.model("Thumbnail", thumbnailSchema);
