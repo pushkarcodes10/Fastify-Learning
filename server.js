@@ -6,6 +6,10 @@ import fastifySensible from "@fastify/sensible";
 import mongodbPlugin from "./src/plugins/mongodb.js";
 import jwtPlugin from "./src/plugins/jwt.js";
 import authRoutes from "./src/routes/auth.js";
+import thumbnailRoutes from "./src/routes/thumbnail.js";
+import fastifyMultipart from "@fastify/multipart";
+import fastifyStatic from "@fastify/static";
+import path from "path"
 
 const fastify = Fastify({
   logger: true
@@ -37,6 +41,15 @@ await fastify.register(mongodbPlugin);
 await fastify.register(jwtPlugin);
 
 await fastify.register(authRoutes, { prefix: "/api/auth" });
+
+await fastify.register(thumbnailRoutes, { prefix: "/api/thumbnail" });
+
+await fastify.register(fastifyMultipart)
+
+await fastify.register(fastifyStatic, {
+  optroot: path.join(__dirname, "public"),
+  prefix: "/uploads/",
+});
 
 fastify.get("/", function (request, reply) {
   reply.send({ hello: "world" });
