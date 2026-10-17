@@ -9,7 +9,11 @@ import authRoutes from "./src/routes/auth.js";
 import thumbnailRoutes from "./src/routes/thumbnail.js";
 import fastifyMultipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
-import path from "path"
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const fastify = Fastify({
   logger: true
@@ -40,16 +44,16 @@ await fastify.register(mongodbPlugin);
 
 await fastify.register(jwtPlugin);
 
+await fastify.register(fastifyMultipart);
+
+await fastify.register(fastifyStatic, {
+  root: path.join(__dirname, "uploads"),
+  prefix: "/uploads/",
+});
+
 await fastify.register(authRoutes, { prefix: "/api/auth" });
 
 await fastify.register(thumbnailRoutes, { prefix: "/api/thumbnail" });
-
-await fastify.register(fastifyMultipart)
-
-await fastify.register(fastifyStatic, {
-  optroot: path.join(__dirname, "public"),
-  prefix: "/uploads/",
-});
 
 fastify.get("/", function (request, reply) {
   reply.send({ hello: "world" });

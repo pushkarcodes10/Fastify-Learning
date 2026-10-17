@@ -1,135 +1,151 @@
-import Thumbnail from "../models/thumbnail.models.js"
-import path from "path"
-import fs from "fs"
-import { pipeline } from "stream"
-import util from "util"
-import fastify from "fastify"
+import Thumbnail from "../models/thumbnail.models.js";
+import path from "path";
+import fs from "fs";
+import { pipeline } from "stream/promises";
+import { fileURLToPath } from "url";
 
-const pipelineAsync = util.promiseify(pipeline)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadDir = path.resolve(__dirname, "../../uploads/thumbnails");
 
-exports.createThumbnail = async (request, reply) => {
-    try {
-        const parts = request.part()
-        let fields = {}
-        let fileName;
+export const createThumbnail = async (request, reply) => {
+  try {
+    const parts = request.parts();
+    const fields = {};
+    let fileName;
 
-        for await(const part of parts) {
-            if(part.file) {
-               const fileName = `${Date.now()}-${part.fileName}`
-               const saveTo = path.join(
-                __dirname,
-                "..",
-                "uploads",
-                "thumbnails",
-                fileName
-               );
-               await pipelineAsync(part.file, fs.createWriteStream(saveTo))
-            } else {
-                fields[file.fileName] = part.value
-            }
-        }
-
-        const thumbanil = new Thumbnail({
-            user: request.user.id,
-            videoName: fields.videoName,
-            version: fields.version,
-            image: `/uploads/thumbnails/${fileName}`,
-            paid: fields.paid === "true"
-        })
-
-        await Thumbnail.save()
-        reply.code(200).send({message: "Thumbnail Saved Successfully"})
-    } catch (err) {
-        reply.send(err)
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
     }
-}
 
-exports.getThumbnails = async (request, reply) => {
-    try {
-        const thumbnails = await Thumbnail.find({ user: request.user.id });
-        reply.send(thumbnails)
-    } catch (err) {
-        reply.send(err)
+    for await (const part of parts) {
+      if (part.file) {
+        fileName = `${Date.now()}-${part.filename}`;
+        const saveTo = path.join(uploadDir, fileName);
+        await pipeline(part.file, fs.createWriteStream(saveTo));
+      } else {
+        fields[part.fieldname] = part.value;
+      }
     }
-}
 
-exports.getThumbnail = async (request, reply) => {
-    try {
-        const thumbnail = await Thumbnail.findOne({
-            _id: request.params.id,
-            user: request.user.id
-        })
-        if(!thumbnail) {
-            return reply.notFound("Thumbnail not found")
-        }
-        reply.send(thumbnail)
-    } catch (err) {
-        reply.send(err);
+    const userId = request.user?.id || request.user?._id;
+
+    const thumbnail = new Thumbnail({
+      user: userId,
+      videoName: fields.videoName,
+      version: fields.version,
+      image: fileName ? `/uploads/thumbnails/${fileName}` : fields.image,
+      paid: fields.paid === "true" || fields.paid === true
+    });
+
+    await thumbnail.save();
+    return reply.code(200).send({ message: "Thumbnail Saved Successfully" });
+  } catch (err) {
+    return reply.send(err);
+  }
+};
+
+export const getThumbnails = async (request, reply) => {
+  try {
+    const userId = request.user?.id || request.user?._id;
+    const thumbnails = await Thumbnail.find({ user: userId });
+    return reply.send(thumbnails);
+  } catch (err) {
+    return reply.send(err);
+  }
+};
+
+export const getThumbnail = async (request, reply) => {
+  try {
+    const userId = request.user?.id || request.user?._id;
+    const thumbnail = await Thumbnail.findOne({
+      _id: request.params.id,
+      user: userId
+    });
+    if (!thumbnail) {
+      return reply.notFound("Thumbnail not found");
     }
-}
+    return reply.send(thumbnail);
+  } catch (err) {
+    return reply.send(err);
+  }
+};
 
-exports.updateThumbnail = async (request, reply) => {
-    try {
-        const updateData = request.body
-        const thumbnail = await Thumbnail.findByIdAndUpdate({
-          _id: request.params.id,
-          user: request.user.id,
-        }, updateData, {new: true});
-        if(!thumbnail) {
-            return reply.notFound("Thumbnail not found");
-        }
-        reply.send(thumbnail)
-    } catch (err) {
-        reply.send(err);
+export const updateThumbnail = async (request, reply) => {
+  try {
+    const userId = request.user?.id || request.user?._id;
+    const updateData = request.body;
+    const thumbnail = await Thumbnail.findOneAndUpdate(
+      {
+        _id: request.params.id,
+        user: userId
+      },
+      updateData,
+      { new: true }
+    );
+    if (!thumbnail) {
+      return reply.notFound("Thumbnail not found");
     }
-}
+    return reply.send(thumbnail);
+  } catch (err) {
+    return reply.send(err);
+  }
+};
 
-exports.deleteThumbnail = async (request, reply) => {
-    try {
-        const deleteThumbnail = await Thumbnail.findByIdAndDelete({
-          _id: request.params.id,
-          user: request.user.id,
-        });
-        if (!deleteThumbnail) {
-          return reply.notFound("Thumbnail not found");
+export const deleteThumbnail = async (request, reply) => {
+  try {
+    const userId = request.user?.id || request.user?._id;
+    const deletedThumbnail = await Thumbnail.findOneAndDelete({
+      _id: request.params.id,
+      user: userId
+    });
+    if (!deletedThumbnail) {
+      return reply.notFound("Thumbnail not found");
+    }
+
+    if (deletedThumbnail.image) {
+      const filePath = path.join(uploadDir, path.basename(deletedThumbnail.image));
+      fs.unlink(filePath, (err) => {
+        if (err && err.code !== "ENOENT") {
+          request.log.error(err);
         }
+      });
+    }
 
-        const filePath = path.join(
-          __dirname,
-          "..",
-          "uploads",
-          "thumbnails",
-          path.basename(deleteThumbnail.image),
-        );
+    return reply.send({ message: "Thumbnail deleted" });
+  } catch (err) {
+    return reply.send(err);
+  }
+};
+
+export const deleteAllThumbnails = async (request, reply) => {
+  try {
+    const userId = request.user?.id || request.user?._id;
+    const thumbnails = await Thumbnail.find({ user: userId });
+    await Thumbnail.deleteMany({ user: userId });
+
+    for (const thumbnail of thumbnails) {
+      if (thumbnail.image) {
+        const filePath = path.join(uploadDir, path.basename(thumbnail.image));
         fs.unlink(filePath, (err) => {
-            if(err) fastify.log.error()
-        })
-        reply.send({message: "Thumnail deleted"})
-    } catch (err) {
-        reply.send(err);
+          if (err && err.code !== "ENOENT") {
+            request.log.error(err);
+          }
+        });
+      }
     }
-}
 
-exports.deleteAllThumbnails = async(request, reply) => {
-    try {
-        const thumbnails = await Thumbnail.find({ user: request.user.id });
-        await Thumbnail.deleteMany({ user: request.user.id });
+    return reply.send({ message: "All thumbnails deleted" });
+  } catch (err) {
+    return reply.send(err);
+  }
+};
 
-        for (const thumbnail of thumbnails) {
-            const filePath = path.join(
-              __dirname,
-              "..",
-              "uploads",
-              "thumbnails",
-              path.basename(deleteThumbnail.image),
-            );
-            fs.unlink(filepath, (err) => {
-              if (err) fastify.log.error(err);
-            });
-            reply.send({ message: "All thumbnails deleted" });
-        }
-    } catch (err) {
-        reply.se4(err)
-    }
-}
-    
+export default {
+  createThumbnail,
+  getThumbnails,
+  getThumbnail,
+  updateThumbnail,
+  deleteThumbnail,
+  deleteAllThumbnails
+};

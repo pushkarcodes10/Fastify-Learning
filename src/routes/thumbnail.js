@@ -1,4 +1,4 @@
-import thumbnail from "../controllers/thumbnail.controller.js"
+import thumbnailController from "../controllers/thumbnail.controller.js"
 
 export default async function thumbnailRoutes (fastify, opts) {
     fastify.register(async function(fastify){
